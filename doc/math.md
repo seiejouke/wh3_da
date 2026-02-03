@@ -1,183 +1,173 @@
-# Deducing a Unit-to-Unit Combat Equation (from the gathered rules)
+# Unit-to-Unit Combat Simulation Equation (Readable Version)
 
-Yes — you can build a practical unit-to-unit simulator from these mechanics. Below is a clean formulation that works either as a **stochastic (Monte Carlo)** model or an **expected-value** approximation.
+You *can* deduce a workable combat equation from the mechanics you gathered. Below is a clean “expected damage per second” model you can use for unit-vs-unit simulation (and you can optionally swap parts for Monte Carlo rolls).
 
 ---
 
-## 1) Per-swing hit probability
+## 1) Hit chance per swing
 
-For one attacker entity swinging at one target entity:
-
-\[
-p_{\text{hit}}=\text{clamp}\Big(\frac{35 + MA_{\text{eff}} - MD_{\text{eff}}}{100},\ 0.08,\ 0.90\Big)
-\]
+**HitChance = clamp(35% + MeleeAttackEff − MeleeDefenseEff, 8%, 90%)**
 
 Where:
 
-\[
-MA_{\text{eff}} = MA + BV + CB(t) + \Delta MA
-\]
-\[
-MD_{\text{eff}} = MD \cdot m_{\text{flank}} + \Delta MD
-\]
+- **MeleeAttackEff** = MA + BonusVs + ChargeBonus(t) + (buffs/terrain/fatigue MA changes)
+- **MeleeDefenseEff** = MD * FlankMultiplier + (buffs/terrain/fatigue MD changes)
 
-- \(MA\): melee attack  
-- \(MD\): melee defense  
-- \(BV\): bonus vs (infantry/large) when applicable  
-- \(CB(t)\): charge bonus contribution at time \(t\)  
-- \(\Delta MA, \Delta MD\): fatigue / terrain / buffs / debuffs  
-- \(m_{\text{flank}}\in\{1,\ 0.6,\ 0.3\}\) for front / side / rear (CA framing). 
+Flank multipliers:
+- Front: **1.0**
+- Side: **0.6**
+- Rear: **0.3**
+
+So in one line:
+
+HitChance = clamp((35 + MA_eff − MD_eff) / 100, 0.08, 0.90)
 
 ---
 
-## 2) Charge bonus decay model
+## 2) Charge bonus over time
 
-CA’s description: full value immediately, then decays linearly after a successful charge. 
+ChargeBonus contributes to BOTH:
+- hit chance (as added MA)
+- weapon damage (as added damage)
 
-A simple piecewise model (parameterize the decay length \(T\)):
+Simple model:
 
-\[
-CB(t)=
-\begin{cases}
-CB_0 & t\le 1 \\
-CB_0\cdot\Big(1-\frac{t-1}{T}\Big) & 1<t<1+T \\
-0 & t\ge 1+T
-\end{cases}
-\]
+- Full bonus for the first **1 second**
+- Then it decays linearly for **T seconds** (CA uses 13; you can parameterize it)
 
-- If you follow CA’s stated default, set \(T=13\).   
-- If you want to support mod variance, keep \(T\) as a tunable parameter.
+ChargeBonus(t):
+- if t ≤ 1: CB0
+- if 1 < t < 1 + T: CB0 * (1 − (t − 1)/T)
+- if t ≥ 1 + T: 0
 
 ---
 
-## 3) Per-swing raw damage (Base + AP), preserving AP ratio
+## 3) Weapon damage (Base + AP), preserving AP ratio
 
-Let:
-- Base (non-AP): \(D_B\)
-- Armour-piercing: \(D_{AP}\)
-- Total: \(D_T = D_B + D_{AP}\)
-- AP ratio: \(r = \frac{D_{AP}}{D_T}\)
+Split weapon strength into:
+- **BaseDamage** (non-AP): DB
+- **ArmorPiercingDamage**: DAP
 
-If an additive damage bonus \(X\) applies (from **Bonus vs** and/or **Charge Bonus**), CA adds it while preserving the AP/Base ratio. 
+TotalDamage = DB + DAP  
+APRatio = DAP / (DB + DAP)
 
-\[
-D_B' = D_B + (1-r)\,X
-\]
-\[
-D_{AP}' = D_{AP} + r\,X
-\]
+Let **X = BonusVs + ChargeBonus(t)** be the additive bonus damage.
 
-Commonly:
-\[
-X = BV + CB(t)
-\]
-(+ any similar additive damage sources you include)
+To preserve the AP/Base ratio:
+
+- BaseDamage' = DB + (1 − APRatio) * X
+- APDamage'   = DAP + APRatio * X
+
+This matches the “ratio preserved” behavior described in your notes/CA.
 
 ---
 
-## 4) Armour reduces Base damage only (random roll)
+## 4) Armor reduces Base damage only (random roll)
 
-CA: armour rolls between **0.5×Armour** and **1×Armour**, and Base damage can be reduced to **0** (no minimum for Base). 
+Armor does NOT touch AP damage.
 
-### Stochastic per-hit armour roll
-\[
-R \sim \text{Uniform}(0.5A,\ A)
-\]
-\[
-R \leftarrow \min(R, 100)
-\]
-\[
-D_B'' = D_B' \cdot (1 - R/100)
-\]
-\[
-D_{AP}'' = D_{AP}'
-\]
-
-### Expected-value shortcut (fast sim)
-\[
-\mathbb{E}[R] \approx \min(0.75A, 100)
-\]
-\[
-\mathbb{E}[D_B''] = D_B' \cdot (1 - \mathbb{E}[R]/100)
-\]
-
----
-
-## 5) Tags + resistances (additive, capped)
-
-CA: resistances add together and cap at **90%** reduction; Magic/Spell have specific interactions with physical resistance; missile resistance applies to missiles and explosions. 
-
-Define an effective reduction \(S\) (as a fraction), built from the resistances that apply:
-
-- **Ward save** always applies
-- **Physical resistance** applies only if the attack is *not* Magic or Spell
-- **Fire resistance/weakness** applies only if attack has Fire tag
-- **Spell resistance** applies only to Spell-tag damage sources
-- **Missile resistance** applies only to missiles/explosions
-
-\[
-S = \text{clamp}\Big(\sum R_i,\ S_{\min},\ 0.90\Big)
-\]
+Armor roll:
+- pick a random percent reduction between **0.5 * Armor** and **1.0 * Armor**
+- cap reduction at **100%**
 
 Then:
-\[
-D_{\text{after res}} = (D_B'' + D_{AP}'')\cdot(1 - S)
-\]
 
-Notes:
-- Fire weakness can make \(S\) negative (bonus damage). CA discusses fire weakness as a negative resist.   
-- If you want a hard cap on bonus damage (e.g., +100%), set \(S_{\min}=-1.0\) as a simulation parameter.
+- BaseAfterArmor = BaseDamage' * (1 − ArmorRoll)
+- APAfterArmor   = APDamage' (unchanged)
 
-Fire’s extra “On Fire” effect (healing halved for 10s) is better modeled as a status effect separate from damage. 
+### Fast expected-value shortcut
+If you want deterministic simulation:
+
+ExpectedArmorRoll ≈ min(0.75 * Armor, 1.0)
+
+So:
+
+BaseAfterArmor ≈ BaseDamage' * (1 − ExpectedArmorRoll)
+
+---
+
+## 5) Apply resistances (additive, capped)
+
+Let ResistSum be the sum of all resistances that apply:
+
+Always:
+- WardSave
+
+If attack is Fire:
+- add FireResistance (or negative value for FireWeakness)
+
+If attack is NOT magical/spell:
+- add PhysicalResistance
+
+If attack is Magical:
+- PhysicalResistance does NOT apply (it’s bypassed)
+- MagicResistance may apply (depending on the game’s resistance definitions)
+
+If attack is Spell-type:
+- SpellResistance applies (separate axis in CA’s blog)
+
+If attack is Missile/Explosion:
+- MissileResistance applies
+
+Then:
+
+ResistSum is capped at **0.90** (90% reduction)
+
+FinalDamagePerHit = (BaseAfterArmor + APAfterArmor) * (1 − clamp(ResistSum, MinResist, 0.90))
+
+Where:
+- MinResist can be negative if you allow weakness to increase damage
+- If you want a simple cap like “max +100% damage”, set MinResist = −1.0
 
 ---
 
 ## 6) Expected damage per swing
 
-\[
-\mathbb{E}[d_{\text{swing}}] = p_{\text{hit}}\cdot \mathbb{E}[D_{\text{after res}}]
-\]
+ExpectedDamagePerSwing = HitChance * FinalDamagePerHit
 
-- Deterministic sim: use expected armour roll \(\mathbb{E}[R]\)
-- Monte Carlo sim: sample hit/miss and armour roll each swing
+This is the core “per swing” equation.
 
 ---
 
-## 7) From entity-vs-entity to unit-vs-unit DPS
+## 7) Unit-to-unit DPS (aggregate model)
+
+Now scale by how many entities are actually swinging.
 
 Let:
-- \(n_A(t)\): number of attacker entities able to attack at time \(t\)
-- \(f_A\): swings per second per entity (empirical; roughly inverse of attack cycle)
-- \(k(t)\): effective number of targets hit by splash division (≈ 1 if no splash or high-threat focus)
+- nA(t) = number of attacker entities currently able to attack
+- swingsPerSecond = attack frequency per entity (empirical constant)
+- splashDivisor k(t) = how many targets the attacker’s damage is divided across (≈1 for single-target; >1 for splash splitting)
 
-Then expected DPS from unit A to unit B:
+Then:
 
-\[
-DPS_{A\to B}(t)= n_A(t)\cdot f_A \cdot \frac{\mathbb{E}[d_{\text{swing}}(t)]}{k(t)}
-\]
+DPS_A_to_B(t) = nA(t) * swingsPerSecond * (ExpectedDamagePerSwing / k(t))
 
 ---
 
-## 8) Unit HP update (discrete timestep)
+## 8) Time stepping (simulation loop)
 
-For timestep \(\Delta t\):
+For timestep Δt:
 
-\[
-HP_B(t+\Delta t) = HP_B(t) - DPS_{A\to B}(t)\,\Delta t
-\]
-\[
-HP_A(t+\Delta t) = HP_A(t) - DPS_{B\to A}(t)\,\Delta t
-\]
+HP_B(t + Δt) = HP_B(t) − DPS_A_to_B(t) * Δt  
+HP_A(t + Δt) = HP_A(t) − DPS_B_to_A(t) * Δt
 
-To make this behave like the game, you typically also:
-- convert HP loss into **entity deaths**, reducing \(n_A(t)\) and \(n_B(t)\)
-- update engagement/contact conditions affecting how many entities can swing
+To make it behave like the game:
+- convert HP loss into entity deaths → reduces nA(t), nB(t)
+- update flank state, charge state, fatigue state, terrain state over time
+- update splash divisor based on contact + “high threat” rules (if modeled)
 
 ---
 
-## What this gives you
+## Minimal “single equation” view
 
-- A clean **expected-value simulator** (fast, deterministic) using \(\mathbb{E}[R]\) and averaged splash behavior.
-- A higher-fidelity **Monte Carlo simulator** sampling hit + armour + splash targeting each swing tick.
+If you want the whole thing collapsed:
+
+ExpectedDPS_A_to_B
+= nA * freqA
+  * HitChance(MA,MD,flank,BV,CB,mods)
+  * Damage(DB,DAP,BV,CB,Armor,Resists)
+  / splashDivisor
 
 ---
+
+If you tell me whether you want **expected-value** (fast) or **Monte Carlo** (roll hit + armor per swing), I can express the exact same model as pseudocode in a repo-friendly block.
