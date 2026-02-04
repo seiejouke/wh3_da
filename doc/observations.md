@@ -406,3 +406,35 @@ Also important:
 - Resolve or caveat the **13s vs 15s** charge decay discrepancy
 
 ---
+Community notes from discord pin
+
+Stats that the game does not  really explain 101 (There are 4 messages of explanations):
+Here is a list of different stats and traits that the game just throws at you, but doesn't really explain. Plan is to extend this list till all stats have been explained in some fashion. Some of these stats are not shown in game, but are present in the files and are shown on sites like TWWstats.
+
+Units and Entities
+Very short explanation since these words will be mentioned a lot. A unit is the entire regiment, while an entity is a single model in a unit. A unit of Empire Spearmen has 120 Entities etc.
+
+Armour
+Armour provides damage reduction to base weapon and base missile damage. The amount of reduction given to every instance of damage where armour applies, is a random percentage with a lower cap of half your armour and upper cap of all your armour. So if you have 100 armour, you reduce base damage with 50 to 100% 
+
+Resistances
+There are a plethora of different resistances to keep track of and they all cap at 90%! Resistances can in general not be negative either.
+Here is a list and what they do:
+Physical resistance reduces all non-magical damage. This means Magical Attacks (marked with a blue swirly) and Direct Spell damage bypasses this resistance
+Missile resistance only works on missiles. It affects both regular and explosive missile damage.
+Spellresistance works only towards spells. This has no effect on Magical Attacks in Total War: Warhammer 3!
+Fire resistance works against any attack that has the Flaming attack marker. Fire resistance is the only exception where you can go into negative, with Weakness to Fire. They subtract directly from each other, so 50% Fire Resistance and 60% Weakness to Fire results in 10% Weakness to Fire. 
+Ward save is also a resistance, sometimes just called Damage Reduction. This percentage cannot be bypassed (as of yet) and just flat out reduces all damage taken.
+
+Missile Block
+Gives the unit a chance to block certain missiles from the front. Any shots from the flank or the rear ignores this. The shield animation does not matter when it comes to whether it works or not (like with Quarrelers who has the shield on their back). The two different projectile types this does not work against is the Misc and Artillery type, unless the unit has Ballistic Plating, which specifically makes that unit able to block all types of missiles. Explosive missiles can only have it's regular missile damage blocked.
+There is also 360 degree Missile block tags and Directional Missile Block, which makes you able to block from all sides (Directional Missile Block gets to block missiles from the flank at half chance and from the rear at 1/10th of the chance (70% missile block would be 35% and 7% respectively)
+
+Speed and Acceleration/Deacceleration
+Speed measures how fast a unit moves. Speed is seen in m/s at 1/10th of the speed value you have, so 32 speed means the unit runs at 3.2m/s. There are many units who can get a lot of speed, however speed is capped by the run animation of the unit. While we don't know any of those values, just be aware that stacking 300 speed on a lord may or may not have a lot of stats wasted as an example. 
+Acceleration and Deacceleration is how fast a unit gets up to it's full speed and stops from full speed. Whenever a unit has to turn, it has to deaccelerate as well. While the exact effect of these two stats are not that easy to discern, Wayfarer is the most common trait which gives it, and has a very noticeable effect on how easy it is to manoeuvre the unit around. 
+
+Melee Attack and Defence
+Melee Attack (MA) and Melee Defence (MD) is used to calculate chance to hit for Melee attacks. The formula is:
+35 + Attacker MA - Defender's MD
+Hit chance is hard capped at 8% and 90%, which means you need 55 MA above your opponents MD to hit cap, and vice versa need 27 MD above your opponents MA to hit cap.
